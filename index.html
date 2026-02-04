@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Maturalny System Egzaminacyjny</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f8f9fc;
+      color: #1f2937;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1, h2 { color: #1d4ed8; }
+    input, textarea, select, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      font-size: 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    button.logout { background: #6b7280; width: auto; padding: 10px 20px; }
+    button.send { 
+      background: #dc2626; 
+      font-size: 1.1rem; 
+      padding: 16px; 
+      margin: 32px auto; 
+      display: block; 
+      width: 340px; 
+    }
+    .panel { 
+      display: none; 
+      background: white; 
+      padding: 24px; 
+      border-radius: 10px; 
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08); 
+    }
+    .question {
+      background: #f9fafb;
+      padding: 18px;
+      margin: 16px 0;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+    .options label { display: block; margin: 10px 0; cursor: pointer; }
+    #login-container { max-width: 420px; margin: 80px auto; background: white; padding: 32px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    #login-msg { color: #dc2626; min-height: 1.4em; margin-top: 8px; }
+    .info { color: #4b5563; font-size: 0.95rem; margin-top: 16px; line-height: 1.5; }
+    img.question-image {
+      max-width: 100%;
+      height: auto;
+      margin: 12px 0;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- EKRAN LOGOWANIA -->
+  <div id="login-container">
+    <h1>Maturalny System Egzaminacyjny</h1>
+    <input type="email"    id="email"    placeholder="Email" autocomplete="email" />
+    <input type="password" id="password" placeholder="Hasło" autocomplete="current-password" />
+    <button onclick="login()">Zaloguj się</button>
+    
+    <div id="login-msg"></div>
+    
+    <div class="info">
+      Konta tworzy wyłącznie administrator.<br>
+      Jeśli nie masz konta – poproś o nie egzaminatora.
+    </div>
+  </div>
+
+  <!-- PANEL EGZAMINATORA -->
+  <div id="egzaminator-panel" class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <h1>Panel egzaminatora</h1>
+      <button class="logout" onclick="logout()">Wyloguj</button>
+    </div>
+
+    <h2>Dodaj nowe pytanie</h2>
+    <input id="pytanie-tekst" placeholder="Treść pytania" />
+    
+    <!-- NOWE POLE – obraz do pytania -->
+    <label for="pytanie-obraz">Dodaj obraz do zadania (opcjonalnie):</label>
+    <input type="file" id="pytanie-obraz" accept="image/*" />
+
+    <select id="typ-pytania">
+      <option value="abcd">ABCD (jedna poprawna odpowiedź)</option>
+      <option value="pf">Prawda/Fałsz – dwie wypowiedzi (PP/PF/FP/FF)</option>
+      <option value="otwarte-krotkie">Krótka odpowiedź tekstowa</option>
+      <option value="wypracowanie">Wypracowanie / dłuższa odpowiedź</option>
+    </select>
+
+    <div id="abcd-opcje" style="display:none;">
+      <input placeholder="A)" />
+      <input placeholder="B)" />
+      <input placeholder="C)" />
+      <input placeholder="D)" />
+      <input placeholder="Poprawna (A/B/C/D)" maxlength="1" style="width:140px;" />
+    </div>
+
+    <div id="pf-opcje" style="display:none;">
+      <input placeholder="Stwierdzenie 1" />
+      <input placeholder="Stwierdzenie 2" />
+      <input placeholder="Poprawna kombinacja (PP/PF/FP/FF)" maxlength="2" style="width:180px;" />
+    </div>
+
+    <button onclick="dodajPytanie()" style="margin-top:16px;">Dodaj pytanie</button>
+
+    <h2 style="margin-top:48px;">Przesłane prace uczniów</h2>
+    <div id="odpowiedzi-lista"></div>
+  </div>
+
+  <!-- PANEL UCZNIA -->
+  <div id="uczen-panel" class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <h1>Arkusz maturalny</h1>
+      <button class="logout" onclick="logout()">Wyloguj</button>
+    </div>
+
+    <div id="arkusz"></div>
+
+    <button class="send" onclick="wyslijOdpowiedzi()">
+      WYŚLIJ ARKUSZ DO EGZAMINATORA
+    </button>
+  </div>
+
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
+
+<script>
+// ────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAcNSULjjaIoZ1lHHOtpKrIx7ZJD9VtjFQ",
+  authDomain: "maturalny-system-egzaminacyjny.firebaseapp.com",
+  projectId: "maturalny-system-egzaminacyjny",
+  storageBucket: "maturalny-system-egzaminacyjny.firebasestorage.app",
+  messagingSenderId: "416740071826",
+  appId: "1:416740071826:web:ad5f83363798da21ec894b",
+  measurementId: "G-FQNNVZXN7T"
+};
+// ────────────────────────────────────────────────
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+const storage = firebase.storage();
+
+let currentUser = null;
+let pytania = [];
+
+// Przełączanie paneli
+function showPanel(role) {
+  document.getElementById('login-container').style.display = 'none';
+  document.getElementById('egzaminator-panel').style.display = role === 'egzaminator' ? 'block' : 'none';
+  document.getElementById('uczen-panel').style.display      = role === 'uczen' ? 'block' : 'none';
+
+  if (role === 'uczen')       ladujPytania();
+  if (role === 'egzaminator') ladujOdpowiedzi();
+}
+
+// Logowanie + automatyczne przypisanie roli
+function login() {
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const msg      = document.getElementById('login-msg');
+
+  msg.textContent = '';
+
+  if (!email || !password) {
+    msg.textContent = 'Wypełnij email i hasło';
+    return;
+  }
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then(userCredential => {
+      currentUser = userCredential.user;
+      przypiszLubPobierzRole(currentUser.uid, currentUser.email);
+    })
+    .catch(err => {
+      msg.textContent = err.message;
+    });
+}
+
+// Przypisywanie roli (każdy domyślnie uczeń, wyjątek Twój email)
+function przypiszLubPobierzRole(uid, email) {
+  const usersRef = db.collection('users').doc(uid);
+
+  usersRef.get()
+    .then(doc => {
+      if (doc.exists) {
+        showPanel(doc.data().role);
+      } else {
+        let rola = 'uczen';
+        if (email.toLowerCase() === 'mbecela.egz@mse.edu') {
+          rola = 'egzaminator';
+        }
+
+        usersRef.set({
+          role: rola,
+          email: email,
+          utworzono: firebase.firestore.FieldValue.serverTimestamp()
+        })
+        .then(() => showPanel(rola))
+        .catch(err => {
+          document.getElementById('login-msg').textContent = 'Błąd tworzenia profilu: ' + err.message;
+          logout();
+        });
+      }
+    })
+    .catch(err => {
+      document.getElementById('login-msg').textContent = 'Błąd odczytu profilu: ' + err.message;
+      logout();
+    });
+}
+
+// Wylogowanie
+function logout() {
+  auth.signOut().then(() => {
+    currentUser = null;
+    document.getElementById('login-container').style.display = 'block';
+    document.getElementById('egzaminator-panel').style.display = 'none';
+    document.getElementById('uczen-panel').style.display = 'none';
+  });
+}
+
+// Zmiana typu pytania
+document.getElementById('typ-pytania').addEventListener('change', e => {
+  const val = e.target.value;
+  document.getElementById('abcd-opcje').style.display = val === 'abcd' ? 'block' : 'none';
+  document.getElementById('pf-opcje').style.display   = val === 'pf'   ? 'block' : 'none';
+});
+
+// Dodawanie pytania + upload obrazu
+async function dodajPytanie() {
+  const tekst = document.getElementById('pytanie-tekst').value.trim();
+  const typ   = document.getElementById('typ-pytania').value;
+  const fileInput = document.getElementById('pytanie-obraz');
+  const file = fileInput.files[0];
+
+  if (!tekst) return alert('Wpisz treść pytania');
+
+  let dane = {
+    tekst,
+    typ,
+    utworzono: firebase.firestore.FieldValue.serverTimestamp(),
+    imageUrl: null   // domyślnie brak
+  };
+
+  // Jeśli wybrano plik → upload do Storage
+  if (file) {
+    try {
+      const storageRef = storage.ref('pytania-obrazy/' + Date.now() + '_' + file.name);
+      const uploadTask = storageRef.put(file);
+
+      // Można dodać progress bar, ale na razie prosty await
+      await new Promise((resolve, reject) => {
+        uploadTask.on('state_changed',
+          null,
+          error => reject(error),
+          () => resolve()
+        );
+      });
+
+      const downloadURL = await storageRef.getDownloadURL();
+      dane.imageUrl = downloadURL;
+    } catch (err) {
+      alert('Błąd wgrywania obrazu: ' + err.message);
+      return; // przerywamy dodawanie pytania
+    }
+  }
+
+  // reszta danych (opcje ABCD / PF)
+  if (typ === 'abcd') {
+    const inputs = document.querySelectorAll('#abcd-opcje input');
+    dane.opcje    = Array.from(inputs).slice(0,4).map(i => i.value.trim());
+    dane.poprawna = inputs[4].value.trim().toUpperCase();
+  }
+  else if (typ === 'pf') {
+    const inputs = document.querySelectorAll('#pf-opcje input');
+    dane.stwierdzenia = Array.from(inputs).slice(0,2).map(i => i.value.trim());
+    dane.poprawna     = inputs[2].value.trim().toUpperCase();
+  }
+
+  db.collection('pytania').add(dane)
+    .then(() => {
+      alert('Pytanie dodane' + (dane.imageUrl ? ' (z obrazem)' : ''));
+      document.getElementById('pytanie-tekst').value = '';
+      fileInput.value = ''; // czyścimy input pliku
+    })
+    .catch(err => alert('Błąd zapisu pytania: ' + err.message));
+}
+
+// Ładowanie pytań – z obrazem jeśli istnieje
+function ladujPytania() {
+  db.collection('pytania').orderBy('utworzono').get()
+    .then(snapshot => {
+      pytania = [];
+      const kontener = document.getElementById('arkusz');
+      kontener.innerHTML = '';
+
+      if (snapshot.empty) {
+        kontener.innerHTML = '<p style="text-align:center; color:#6b7280;">Brak pytań – egzaminator jeszcze nic nie dodał.</p>';
+        return;
+      }
+
+      snapshot.forEach(doc => {
+        const q = doc.data();
+        pytania.push({ id: doc.id, ...q });
+
+        let html = `<div class="question">`;
+
+        // Obraz jeśli jest
+        if (q.imageUrl) {
+          html += `<img src="${q.imageUrl}" alt="Obraz do zadania" class="question-image">`;
+        }
+
+        html += `<div>${q.tekst}</div>`;
+
+        if (q.typ === 'abcd') {
+          ['A','B','C','D'].forEach((lit, i) => {
+            if (q.opcje?.[i]) html += `<label><input type="radio" name="${doc.id}" value="${lit}"> ${lit}) ${q.opcje[i]}</label><br>`;
+          });
+        }
+        else if (q.typ === 'pf') {
+          ['PP','PF','FP','FF'].forEach(k => {
+            html += `<label><input type="radio" name="${doc.id}" value="${k}"> ${k}</label><br>`;
+          });
+        }
+        else if (q.typ === 'otwarte-krotkie') {
+          html += `<input type="text" id="odp-${doc.id}" placeholder="Twoja odpowiedź..." />`;
+        }
+        else if (q.typ === 'wypracowanie') {
+          html += `<textarea id="odp-${doc.id}" rows="7" placeholder="Rozwiń odpowiedź..."></textarea>`;
+        }
+
+        html += '</div>';
+        kontener.innerHTML += html;
+      });
+    });
+}
+
+// Wysyłanie odpowiedzi (bez zmian)
+function wyslijOdpowiedzi() {
+  if (!currentUser) return alert('Nie jesteś zalogowany');
+
+  const odpowiedzi = pytania.map(q => {
+    let odp = '';
+
+    if (q.typ === 'abcd' || q.typ === 'pf') {
+      const radio = document.querySelector(`input[name="${q.id}"]:checked`);
+      odp = radio ? radio.value : '';
+    } else {
+      const pole = document.getElementById(`odp-${q.id}`);
+      odp = pole ? pole.value.trim() : '';
+    }
+
+    return {
+      pytanieId: q.id,
+      tekst: q.tekst,
+      typ: q.typ,
+      odpowiedz: odp
+    };
+  });
+
+  db.collection('odpowiedzi').add({
+    userId: currentUser.uid,
+    email: currentUser.email,
+    odpowiedzi,
+    wyslane: firebase.firestore.FieldValue.serverTimestamp()
+  })
+  .then(() => alert('Arkusz wysłany pomyślnie'))
+  .catch(err => alert('Błąd wysyłania: ' + err.message));
+}
+
+// Ładowanie odpowiedzi (dla egzaminatora) – bez zmian
+function ladujOdpowiedzi() {
+  db.collection('odpowiedzi').orderBy('wyslane', 'desc').get()
+    .then(snapshot => {
+      const kontener = document.getElementById('odpowiedzi-lista');
+      kontener.innerHTML = snapshot.empty 
+        ? '<p style="text-align:center; color:#6b7280;">Nie ma jeszcze przesłanych arkuszy.</p>'
+        : '';
+
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        let html = `<div class="question">
+          <strong>Uczeń:</strong> ${d.email || d.userId.slice(0,8) + '...' }<br>
+          <small>${d.wyslane ? d.wyslane.toDate().toLocaleString('pl-PL') : ''}</small>
+        `;
+
+        d.odpowiedzi.forEach(o => {
+          html += `<p><strong>${o.tekst}</strong><br><em>→ ${o.odpowiedz || '<i>brak</i>'}</em></p><hr>`;
+        });
+
+        html += '</div>';
+        kontener.innerHTML += html;
+      });
+    });
+}
+
+// Automatyczne logowanie
+auth.onAuthStateChanged(user => {
+  if (user) {
+    currentUser = user;
+    przypiszLubPobierzRole(user.uid, user.email);
+  } else {
+    document.getElementById('login-container').style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>
