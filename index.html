@@ -29,18 +29,10 @@
     #login-msg { color:#dc2626; min-height:1.4em; margin-top:8px; }
     .info { color:#4b5563; font-size:0.95rem; margin-top:16px; line-height:1.5; }
     img.question-image {
-      max-width: 100%;
-      height: auto;
-      margin: 12px 0 8px 0;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-width: 100%; height: auto; margin:12px 0 8px 0; border-radius:6px; 
+      box-shadow:0 2px 8px rgba(0,0,0,0.1);
     }
-    .url-hint {
-      font-size: 0.85rem;
-      color: #6b7280;
-      margin-top: -8px;
-      margin-bottom: 12px;
-    }
+    .url-hint { font-size:0.85rem; color:#6b7280; margin:-8px 0 12px 0; }
   </style>
 </head>
 <body>
@@ -70,9 +62,7 @@
     
     <label for="obraz-url">Adres URL obrazu (opcjonalnie):</label>
     <input id="obraz-url" placeholder="https://example.com/obraz.jpg" type="url" />
-    <div class="url-hint">
-      Wklej bezpośredni link do publicznie dostępnego obrazu (np. z imgur, google drive "każdy z linkiem", github, ...).
-    </div>
+    <div class="url-hint">Wklej bezpośredni link do publicznie dostępnego obrazu.</div>
 
     <select id="typ-pytania">
       <option value="abcd">ABCD (jedna poprawna odpowiedź)</option>
@@ -82,22 +72,20 @@
     </select>
 
     <div id="abcd-opcje" style="display:none;">
-      <input placeholder="A)" /><input placeholder="B)" /><input placeholder="C)" /><input placeholder="D)" />
-      <input placeholder="Poprawna (A/B/C/D)" maxlength="1" style="width:140px;" />
+      <input placeholder="A)" /><br>
+      <input placeholder="B)" /><br>
+      <input placeholder="C)" /><br>
+      <input placeholder="D)" /><br>
+      <input placeholder="Poprawna litera (A/B/C/D)" maxlength="1" style="width:180px;" />
     </div>
 
     <div id="pf-opcje" style="display:none;">
-      <input placeholder="Stwierdzenie 1" />
-      <input placeholder="Stwierdzenie 2" />
-      <input placeholder="Poprawna kombinacja (PP/PF/FP/FF)" maxlength="2" style="width:180px;" />
+      <input placeholder="Stwierdzenie 1" /><br>
+      <input placeholder="Stwierdzenie 2" /><br>
+      <input placeholder="Poprawna kombinacja (PP/PF/FP/FF)" maxlength="2" style="width:220px;" />
     </div>
 
     <button onclick="dodajPytanie()" style="margin-top:16px;">Dodaj pytanie</button>
-
-    <h2 style="margin-top:24px;">Testuj arkusz</h2>
-    <button onclick="ladujPytaniaTest()">Załaduj arkusz do testu</button>
-    <div id="arkusz-test" style="margin-top:20px;"></div>
-    <button onclick="sprawdzOdpowiedziTest()" style="margin-top:16px; background:#34d399; display:none;" id="sprawdz-button">Sprawdź odpowiedzi</button>
 
     <h2 style="margin-top:48px;">Przesłane prace uczniów</h2>
     <div id="odpowiedzi-lista"></div>
@@ -137,7 +125,6 @@ const db = firebase.firestore();
 
 let currentUser = null;
 let pytania = [];
-let pytaniaTest = [];  // dla testu egzaminatora
 
 function showPanel(role) {
   document.getElementById('login-container').style.display = 'none';
@@ -195,11 +182,18 @@ function logout() {
   });
 }
 
-document.getElementById('typ-pytania').addEventListener('change', e => {
-  const v = e.target.value;
+// Pokazywanie/ukrywanie pól dodatkowych w zależności od typu
+function updateOpcje() {
+  const v = document.getElementById('typ-pytania').value;
   document.getElementById('abcd-opcje').style.display = v === 'abcd' ? 'block' : 'none';
-  document.getElementById('pf-opcje').style.display = v === 'pf' ? 'block' : 'none';
-});
+  document.getElementById('pf-opcje').style.display   = v === 'pf'   ? 'block' : 'none';
+}
+
+// Uruchom przy zmianie + raz po załadowaniu strony
+document.getElementById('typ-pytania').addEventListener('change', updateOpcje);
+
+// Bardzo ważne – wywołujemy raz na starcie (bo domyślnie wybrany jest ABCD)
+window.addEventListener('load', updateOpcje);
 
 function dodajPytanie() {
   const tekst = document.getElementById('pytanie-tekst').value.trim();
@@ -220,10 +214,16 @@ function dodajPytanie() {
     const inp = document.querySelectorAll('#abcd-opcje input');
     dane.opcje = Array.from(inp).slice(0,4).map(el => el.value.trim());
     dane.poprawna = inp[4].value.trim().toUpperCase();
+    if (!dane.poprawna || !['A','B','C','D'].includes(dane.poprawna)) {
+      return alert('Wybierz poprawną literę (A, B, C lub D)');
+    }
   } else if (typ === 'pf') {
     const inp = document.querySelectorAll('#pf-opcje input');
     dane.stwierdzenia = Array.from(inp).slice(0,2).map(el => el.value.trim());
     dane.poprawna = inp[2].value.trim().toUpperCase();
+    if (!['PP','PF','FP','FF'].includes(dane.poprawna)) {
+      return alert('Poprawna kombinacja musi być jedną z: PP, PF, FP, FF');
+    }
   }
 
   db.collection('pytania').add(dane)
@@ -265,66 +265,7 @@ function ladujPytania() {
       html += '</div>';
       div.innerHTML += html;
     });
-  });
-}
-
-function ladujPytaniaTest() {
-  db.collection('pytania').orderBy('utworzono').get().then(snap => {
-    pytaniaTest = [];
-    const div = document.getElementById('arkusz-test');
-    div.innerHTML = snap.empty ? '<p style="text-align:center;color:#6b7280;">Brak pytań do testu.</p>' : '';
-
-    snap.forEach(doc => {
-      const q = doc.data();
-      pytaniaTest.push({id: doc.id, ...q, poprawna: q.poprawna});
-      let html = `<div class="question">`;
-
-      if (q.obrazUrl) html += `<img src="${q.obrazUrl}" alt="Obraz do zadania" class="question-image" loading="lazy">`;
-
-      html += `<div>${q.tekst}</div>`;
-
-      if (q.typ === 'abcd') {
-        ['A','B','C','D'].forEach((l,i) => {
-          if (q.opcje?.[i]) html += `<label><input type="radio" name="test-${doc.id}" value="${l}"> ${l}) ${q.opcje[i]}</label><br>`;
-        });
-      } else if (q.typ === 'pf') {
-        ['PP','PF','FP','FF'].forEach(k => html += `<label><input type="radio" name="test-${doc.id}" value="${k}"> ${k}</label><br>`);
-      } else if (q.typ === 'otwarte-krotkie') {
-        html += `<input type="text" id="test-odp-${doc.id}" placeholder="Twoja odpowiedź..." />`;
-      } else if (q.typ === 'wypracowanie') {
-        html += `<textarea id="test-odp-${doc.id}" rows="7" placeholder="Rozwiń odpowiedź..."></textarea>`;
-      }
-
-      html += '</div>';
-      div.innerHTML += html;
-    });
-
-    document.getElementById('sprawdz-button').style.display = snap.empty ? 'none' : 'block';
-  });
-}
-
-function sprawdzOdpowiedziTest() {
-  let wynik = '';
-  pytaniaTest.forEach(q => {
-    let odp = '';
-    if (q.typ === 'abcd' || q.typ === 'pf') {
-      const radio = document.querySelector(`input[name="test-${q.id}"]:checked`);
-      odp = radio ? radio.value : '';
-    } else {
-      const el = document.getElementById(`test-odp-${q.id}`);
-      odp = el ? el.value.trim() : '';
-    }
-
-    wynik += `<p><strong>${q.tekst}</strong><br>`;
-    if (q.poprawna) {
-      wynik += `Twoja odpowiedź: ${odp} | Poprawna: ${q.poprawna} | ${odp === q.poprawna ? 'Poprawnie!' : 'Błąd' }</p><hr>`;
-    } else {
-      wynik += `Twoja odpowiedź: ${odp} (otwarte pytanie, bez automatycznej проверки)</p><hr>`;
-    }
-  });
-
-  const popup = window.open('', 'Wynik testu', 'width=600,height=400');
-  popup.document.write(`<html><body><h2>Wynik testu</h2>${wynik}</body></html>`);
+  }).catch(err => console.error('Błąd ładowania pytań:', err));
 }
 
 function wyslijOdpowiedzi() {
@@ -347,14 +288,14 @@ function wyslijOdpowiedzi() {
     email: currentUser.email,
     odpowiedzi: odp,
     wyslane: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => alert('Wysłano'))
-   .catch(err => alert('Błąd: ' + err.message));
+  }).then(() => alert('Arkusz wysłany pomyślnie'))
+   .catch(err => alert('Błąd wysyłania: ' + err.message));
 }
 
 function ladujOdpowiedzi() {
   db.collection('odpowiedzi').orderBy('wyslane','desc').get().then(snap => {
     const div = document.getElementById('odpowiedzi-lista');
-    div.innerHTML = snap.empty ? '<p style="text-align:center;color:#6b7280;">Brak prac.</p>' : '';
+    div.innerHTML = snap.empty ? '<p style="text-align:center;color:#6b7280;">Brak przesłanych prac.</p>' : '';
 
     snap.forEach(doc => {
       const d = doc.data();
@@ -362,12 +303,12 @@ function ladujOdpowiedzi() {
       html += `<small>${d.wyslane?.toDate()?.toLocaleString('pl-PL')||''}</small>`;
 
       d.odpowiedzi.forEach(o => {
-        html += `<p><strong>${o.tekst}</strong><br><em>→ ${o.odpowiedz || '<i>brak</i>'}</em></p><hr>`;
+        html += `<p><strong>${o.tekst}</strong><br><em>→ ${o.odpowiedz || '<i>brak odpowiedzi</i>'}</em></p><hr>`;
       });
       html += '</div>';
       div.innerHTML += html;
     });
-  });
+  }).catch(err => console.error('Błąd ładowania odpowiedzi:', err));
 }
 
 auth.onAuthStateChanged(user => {
