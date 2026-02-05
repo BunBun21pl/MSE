@@ -33,6 +33,12 @@
       box-shadow:0 2px 8px rgba(0,0,0,0.1);
     }
     .url-hint { font-size:0.85rem; color:#6b7280; margin:-8px 0 12px 0; }
+    .pf-statement {
+      font-weight: 500;
+      margin: 12px 0 8px 0;
+      padding-left: 8px;
+      border-left: 3px solid #6366f1;
+    }
   </style>
 </head>
 <body>
@@ -182,17 +188,13 @@ function logout() {
   });
 }
 
-// Pokazywanie/ukrywanie pól dodatkowych w zależności od typu
 function updateOpcje() {
   const v = document.getElementById('typ-pytania').value;
   document.getElementById('abcd-opcje').style.display = v === 'abcd' ? 'block' : 'none';
   document.getElementById('pf-opcje').style.display   = v === 'pf'   ? 'block' : 'none';
 }
 
-// Uruchom przy zmianie + raz po załadowaniu strony
 document.getElementById('typ-pytania').addEventListener('change', updateOpcje);
-
-// Bardzo ważne – wywołujemy raz na starcie (bo domyślnie wybrany jest ABCD)
 window.addEventListener('load', updateOpcje);
 
 function dodajPytanie() {
@@ -255,7 +257,15 @@ function ladujPytania() {
           if (q.opcje?.[i]) html += `<label><input type="radio" name="${doc.id}" value="${l}"> ${l}) ${q.opcje[i]}</label><br>`;
         });
       } else if (q.typ === 'pf') {
-        ['PP','PF','FP','FF'].forEach(k => html += `<label><input type="radio" name="${doc.id}" value="${k}"> ${k}</label><br>`);
+        if (q.stwierdzenia && q.stwierdzenia.length === 2) {
+          html += `<div class="pf-statement">1. ${q.stwierdzenia[0]}</div>`;
+          html += `<div class="pf-statement">2. ${q.stwierdzenia[1]}</div>`;
+        } else {
+          html += '<p style="color:#ef4444;">Błąd: brak stwierdzeń w pytaniu PF</p>';
+        }
+        ['PP','PF','FP','FF'].forEach(k => {
+          html += `<label><input type="radio" name="${doc.id}" value="${k}"> ${k}</label><br>`;
+        });
       } else if (q.typ === 'otwarte-krotkie') {
         html += `<input type="text" id="odp-${doc.id}" placeholder="Twoja odpowiedź..." />`;
       } else if (q.typ === 'wypracowanie') {
